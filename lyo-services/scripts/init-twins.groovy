@@ -21,26 +21,63 @@ HttpBuilder client = HttpBuilder.configure {
     }
 }
 
-String id = args[0] ?: 'rb-1'
+enum Operation {
+    SINGLE,
+    MULTI
+}
 
-ServiceProvider serviceProvider = new ServiceProvider()
-serviceProvider.identifier = id
-serviceProvider.created = new Date()
-serviceProvider.description = "Remotely created SP '$id'"
-serviceProvider.title = "${id.toUpperCase()}"
+Operation operation = null
 
-def result = client.post {
-    request.uri.path = '/services/admin/initRDF'
-//    request.uri.query = [twinId: id]
-    request.contentType = 'text/turtle'
-    request.body = serviceProvider
-    response.success {
-        println("Created a twin '$id'")
+if (args[0] == null) {
+    throw new IllegalArgumentException("Operation must be selected: SINGLE or MULTI")
+} else {
+    if (args[0].toUpperCase() == "SINGLE") {
+        operation = Operation.SINGLE
+    } else if (args[0].toUpperCase() == "MULTI") {
+        operation = Operation.MULTI
+    } else {
+        throw new IllegalArgumentException("Operation must be selected: SINGLE or MULTI")
+    }
+}
+
+if (operation == Operation.SINGLE) {
+    String id = args[1] ?: 'rb-1'
+    ServiceProvider serviceProvider = createServiceProvider(id)
+
+    createTwin(client, serviceProvider)
+} else if (operation == Operation.MULTI) {
+    int from = Integer.parseInt(args[1])
+    int to = Integer.parseInt(args[2])
+
+    for (id in from..to) {
+        ServiceProvider sp = createServiceProvider("rb-$id")
+        createTwin(client, sp)
     }
 }
 
 
+
 // HELPER METHODS
+
+private static ServiceProvider createServiceProvider(String id) {
+    ServiceProvider serviceProvider = new ServiceProvider()
+    serviceProvider.identifier = id
+    serviceProvider.created = new Date()
+    serviceProvider.description = "Remotely created SP '$id'"
+    serviceProvider.title = "${id.toUpperCase()}"
+    serviceProvider
+}
+
+private void createTwin(HttpBuilder client, ServiceProvider serviceProvider) {
+    def result = client.post {
+        request.uri.path = '/services/admin/initRDF'
+        request.contentType = 'text/turtle'
+        request.body = serviceProvider
+        response.success {
+            println("Created a twin '$serviceProvider.identifier'")
+        }
+    }
+}
 
 private static String serialiseModel(Model m, RDFFormat f) {
     StringWriter writer = new StringWriter()
